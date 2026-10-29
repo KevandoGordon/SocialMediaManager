@@ -1,36 +1,46 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Social Connect
 
-## Getting Started
+A workspace-based social media manager for agencies and in-house teams: plan, preview, schedule, approve and track content across Facebook, Instagram, X, LinkedIn, TikTok, YouTube, Pinterest and Threads. Next.js (App Router) + TypeScript + Tailwind CSS.
 
-First, run the development server:
+It runs entirely on mock data. There is no backend, real sign-in, email delivery, social network connection or publishing. See [docs/production-architecture.md](docs/production-architecture.md) for the proposed schema and migration plan.
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run dev      # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Workspaces in one minute
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- A **user** is one global account. A **workspace** is an independent environment (agency, brand, client) with its own posts, accounts, media, inbox, analytics, settings and members.
+- **Roles are per workspace** (Admin, Manager, Editor, Viewer). The same person can be Admin in one workspace and Viewer in another.
+- **Ownership is separate from membership.** Each workspace has one owner (always an Admin). On the Free plan an account can *own* one workspace and *join* any number by invitation.
+- Switch workspaces from the top of the sidebar (or the header on phones). Every page reloads for the selected workspace.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Demo identities
 
-## Learn More
+The dashed **Demo** menu in the header is a simulated sign-in, not authentication. Pick a seeded account to see the app as them:
 
-To learn more about Next.js, take a look at the following resources:
+| Account | Northwind | Lumen Coffee | Atlas Outdoor | Harbor Health |
+|---|---|---|---|---|
+| Jordan Lee | **Owner**, Admin | Editor | Viewer | invited as Manager |
+| Priya Shah | Manager | invited as Viewer | Admin | **Owner**, Admin |
+| Dana Kim | | **Owner**, Admin | | |
+| Leo Grant | | | **Owner**, Admin | |
+| Sam Rivera | invited as Editor | | | |
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Sam starts with no workspace, so you can try accepting an invitation and creating a first workspace. The Demo menu can also *preview* a lower role in the current workspace. That only hides controls; the API still checks the real role.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Data is in memory and resets on a full reload.
 
-## Deploy on Vercel
+## Where things are
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+| Path | What |
+|---|---|
+| `lib/data/api.ts` | **Mock API, acting as the server.** It reads the demo session, verifies workspace membership and permissions on every call, and scopes every record by workspace. Replace function bodies with real endpoints to go live. |
+| `lib/data/store.tsx` | Client store: session, workspace list, the active workspace's data (cleared on switch), and actions that surface API errors as toasts. |
+| `lib/permissions.ts` | The only place roles are mapped to permissions, plus resource rules (edit or delete own post, which roles a person may invite). Used by both the API and the UI. |
+| `lib/plans.ts` | Plan entitlements (Free: own 1 workspace). |
+| `lib/mock/` | Seed data: users, workspaces, memberships, invitations, and per-workspace content. Only `api.ts` imports it. |
+| `lib/networks.ts`, `lib/validate.ts` | Per-network limits and the Compose preview checks. |
+| `components/workspace/` | Workspace switcher, create dialog, invitations list, demo menu. |
+| `docs/production-architecture.md` | Proposed Postgres schema, enforcement strategy and migration plan. |

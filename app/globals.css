@@ -1,26 +1,96 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Design tokens. Components use the Tailwind names below (bg-surface, text-muted, …), never raw colors. */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f7f7f8;
+  --surface: #ffffff;
+  --surface-2: #f1f1f4;
+  --foreground: #16161d;
+  --muted: #6b6b7b;
+  --border: #e4e4ea;
+  --primary: #5b4bf5;
+  --primary-foreground: #ffffff;
+  --primary-soft: #eeecfe;
+  --success: #12875c;
+  --success-soft: #e3f6ee;
+  --warning: #b25e09;
+  --warning-soft: #fdf1e2;
+  --danger: #d23b3b;
+  --danger-soft: #fdeaea;
+  --ring: #5b4bf5;
+  /* Chart series: validated categorical order, assigned by entity, never by rank. */
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --series-4: #eda100;
+  --chart-grid: #ececf0;
+}
+
+.dark {
+  --background: #0e0e13;
+  --surface: #17171f;
+  --surface-2: #20202a;
+  --foreground: #ececf1;
+  --muted: #9a9aab;
+  --border: #2c2c38;
+  --primary: #8578ff;
+  --primary-foreground: #0e0e13;
+  --primary-soft: #262341;
+  --success: #3fcf8e;
+  --success-soft: #15291f;
+  --warning: #f0a54a;
+  --warning-soft: #2e2214;
+  --danger: #f06a6a;
+  --danger-soft: #331818;
+  --ring: #8578ff;
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
+  --series-4: #c98500;
+  --chart-grid: #26262f;
 }
 
 @theme inline {
   --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
   --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-soft: var(--primary-soft);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-ring: var(--ring);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer base {
+  * {
+    border-color: var(--border);
   }
-}
-
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  html {
+    color-scheme: light;
+  }
+  html.dark {
+    color-scheme: dark;
+  }
+  body {
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-geist-sans), system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
 }
