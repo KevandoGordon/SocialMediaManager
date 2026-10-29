@@ -1,4 +1,4 @@
-import type { Account } from "../types";
+import type { Account } from "../../lib/types";
 import { inWorkspace, minutesAgo } from "./helpers";
 import { KESTREL } from "./workspaces";
 

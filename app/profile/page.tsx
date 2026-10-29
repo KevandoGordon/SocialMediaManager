@@ -52,7 +52,7 @@ export default function ProfilePage() {
           <div>
             <Label htmlFor="email">Email</Label>
             <Input id="email" value={session.user.email} disabled />
-            <p className="mt-1.5 text-xs text-muted">Your email identifies your account and receives invitations. It can&apos;t be changed in demo mode.</p>
+            <p className="mt-1.5 text-xs text-muted">Your email identifies your account and receives invitations. It can&apos;t be changed yet.</p>
           </div>
           <div className="flex justify-end">
             <Button
@@ -68,7 +68,7 @@ export default function ProfilePage() {
       </Card>
 
       <Card>
-        <CardHeader title="Notifications" description="Applies in every workspace. Delivery isn't connected in demo mode." />
+        <CardHeader title="Notifications" description="Applies in every workspace. Email delivery isn't connected yet." />
         <CardBody className="space-y-4">
           {NOTIFICATIONS.map((n) => (
             <div key={n.key} className="flex items-start justify-between gap-4">

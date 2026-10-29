@@ -2,46 +2,71 @@
 
 A workspace-based social media manager for agencies and in-house teams: plan, preview, schedule, approve and track content across Facebook, Instagram, X, LinkedIn, TikTok, YouTube, Pinterest and Threads. Next.js (App Router) + TypeScript + Tailwind CSS.
 
-It runs entirely on mock data. There is no backend, real sign-in, email delivery, social network connection or publishing. See [docs/production-architecture.md](docs/production-architecture.md) for the proposed schema and migration plan.
-
 ```bash
 npm install
-npm run dev      # http://localhost:3000
+cp .env.example .env.local   # add keys for the networks you want to connect
+npm run dev                  # http://localhost:3000, then create an account
 ```
+
+## How it runs today
+
+This is the **local-only** stage:
+
+- **Accounts.** Email and password, with passwords hashed (scrypt). Sessions are an httpOnly cookie, and the server stores only a hash of the session token.
+- **Data.** Saved to `.data/store.json`, with uploads in `.data/uploads/`. The folder is git-ignored. Delete it to start over.
+- **Social networks.** Connected with each network's real OAuth flow; setup is in [docs/connecting-networks.md](docs/connecting-networks.md). Tokens are encrypted and stay on the server.
+- **Not yet built:**
+  - Publishing scheduled posts to the networks.
+  - Syncing analytics, comments and mentions from them.
+  - Sending email (invitations appear in-app for the invitee's email).
+  - Billing (plan switches are free and instant).
+
+[docs/production-architecture.md](docs/production-architecture.md) covers moving to a hosted database.
 
 ## Workspaces in one minute
 
-- A **user** is one global account. A **workspace** is an independent environment (agency, brand, client) with its own posts, accounts, media, inbox, analytics, settings and members.
+- A **user** is one account. A **workspace** is an independent environment (agency, brand, client) with its own posts, accounts, media, inbox, analytics, settings and members.
 - **Roles are per workspace** (Admin, Manager, Editor, Viewer). The same person can be Admin in one workspace and Viewer in another.
-- **Ownership is separate from membership.** Each workspace has one owner (always an Admin). An account can *join* any number of workspaces by invitation; how many it can *own* depends on its plan.
-- **Plans are per owner account, not per seat.** Free: own 1 workspace, 30 days of analytics. Pro ($29/month): own 5, 12 months, CSV export. Agency ($99/month): own 25. A workspace's features come from its owner's plan. Switching plans on the Workspaces page is simulated: no billing provider is connected and nothing is charged.
-- Switch workspaces from the top of the sidebar (or the header on phones). Every page reloads for the selected workspace.
+- **Ownership is separate from membership.** Each workspace has one owner, who is always an Admin. An account can join any number of workspaces by invitation; how many it can own depends on its plan.
+- **Plans are per owner account, not per seat:**
+  - Free: own 1 workspace, 30 days of analytics.
+  - Pro ($29/month): own 5, 12 months of analytics, CSV export.
+  - Agency ($99/month): own 25.
+  
+  A workspace's features come from its owner's plan.
 
-## Demo identities
+## Tests
 
-The dashed **Demo** menu in the header is a simulated sign-in, not authentication. Pick a seeded account to see the app as them:
+```bash
+npm test
+```
 
-| Account | Plan | Kestrel Studio | Lumen Coffee | Atlas Outdoor | Harbor Health |
-|---|---|---|---|---|---|
-| Jordan Lee | Pro | **Owner**, Admin | Editor | Viewer | invited as Manager |
-| Priya Shah | Free | Manager | invited as Viewer | Admin | **Owner**, Admin |
-| Dana Kim | Free | | **Owner**, Admin | | |
-| Leo Grant | Agency | | | **Owner**, Admin | |
-| Sam Rivera | Free | invited as Editor | | | |
+This runs the API rules against sample data in [tests/fixtures/](tests/fixtures/):
+- isolation between workspaces
+- roles, plans and limits
+- invitations
+- connection steps
+- file access
 
-Sam starts with no workspace, so you can try accepting an invitation and creating a first workspace. Priya already owns Harbor on Free, so she shows the creation limit. The Demo menu can also *preview* a lower role in the current workspace. That only hides controls; the API still checks the real role.
+The sample data is only used by tests; the app itself starts empty. To try the app with the sample data, write it to a separate file and point the server at it:
 
-Data is in memory and resets on a full reload.
+```bash
+DATA_FILE=/tmp/sc-sample.json npx tsx tests/seed-fixtures.mts
+DATA_FILE=/tmp/sc-sample.json npm run dev
+```
+
+Every sample user, e.g. `jordan@kestrelstudio.example`, signs in with `fixture-password`.
 
 ## Where things are
 
 | Path | What |
 |---|---|
-| `lib/data/api.ts` | **Mock API, acting as the server.** It reads the demo session, verifies workspace membership and permissions on every call, and scopes every record by workspace. Replace function bodies with real endpoints to go live. |
-| `lib/data/store.tsx` | Client store: session, workspace list, the active workspace's data (cleared on switch), and actions that surface API errors as toasts. |
-| `lib/permissions.ts` | The only place roles are mapped to permissions, plus resource rules (edit or delete own post, which roles a person may invite). Used by both the API and the UI. |
-| `lib/plans.ts` | Plans and prices: workspaces owned, analytics history, CSV export. |
-| `lib/mock/` | Seed data: users, workspaces, memberships, invitations, and per-workspace content. Only `api.ts` imports it. |
-| `lib/networks.ts`, `lib/validate.ts` | Per-network limits and the Compose preview checks. |
-| `components/workspace/` | Workspace switcher, create dialog, invitations list, demo menu. |
-| `docs/production-architecture.md` | Proposed Postgres schema, enforcement strategy and migration plan. |
+| `lib/data/api.ts` | **The API.** Runs on the server. It checks the session, workspace membership and permissions on every call, and scopes every record by workspace. |
+| `app/api/rpc/route.ts`, `lib/server/rpc.ts` | How the browser calls the API: an allowlist of functions, run as the session's user, with a same-origin check. |
+| `lib/data/client.ts`, `lib/data/store.tsx` | Browser side: typed calls to the API, plus the store with session, workspace list and the active workspace's data. |
+| `lib/server/` | Persistence (`state.ts`), sessions, password hashing and token encryption, uploads, and OAuth settings per network (`oauth/providers.ts`). |
+| `app/api/connect/` | The OAuth start and callback routes. |
+| `app/(auth)/` | Sign-in and sign-up. |
+| `lib/permissions.ts` | The only place roles are mapped to permissions. Used by both the API and the UI. |
+| `lib/plans.ts` | Plans and prices. |
+| `tests/` | API tests, sample data, and the seeding script. |

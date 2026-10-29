@@ -213,7 +213,7 @@ function Conversation({ item }: { item: InboxItem }) {
             disabledNote="Your role here can read conversations but not reply."
             onSubmit={async (body) => {
               const ok = await actions.replyToInboxItem(item.id, body);
-              if (ok) toast("Reply saved (demo: not posted to the network)");
+              if (ok) toast("Reply saved here (sending replies to the network isn't connected yet)");
               return !!ok;
             }}
           />

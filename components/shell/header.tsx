@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { PenSquare } from "lucide-react";
 import { useCan, useStore } from "@/lib/data/store";
 import { buttonClass } from "../ui/button";
-import { DemoMenu } from "../workspace/demo-menu";
+import { AccountMenu } from "../workspace/account-menu";
 import { WorkspaceSwitcher } from "../workspace/workspace-switcher";
 import { NAV_ITEMS, isActive } from "./nav";
 import { ThemeToggle } from "./theme-toggle";
@@ -33,7 +33,7 @@ export function Header() {
             New post
           </Link>
         )}
-        <DemoMenu />
+        <AccountMenu />
       </div>
     </header>
   );

@@ -1,23 +1,8 @@
-/** Seed content for the non-Kestrel demo workspaces. Harbor Health is intentionally empty. */
-import { NETWORK_IDS } from "../networks";
-import type { Account, InboxItem, MediaItem, Mention, Post } from "../types";
+/** Seed content for the non-Kestrel test workspaces. Harbor Health is intentionally empty. */
+import { placeholderAccounts } from "../../lib/defaults";
+import type { Account, InboxItem, MediaItem, Mention, Post } from "../../lib/types";
 import { at, inWorkspace, minutesAgo } from "./helpers";
 import { ATLAS, HARBOR, LUMEN } from "./workspaces";
-
-/** One disconnected slot per network, so a fresh workspace's Accounts page has something to connect. */
-export function placeholderAccounts(workspaceId: string, name: string, idPrefix: string): Account[] {
-  const handle = name.toLowerCase().replace(/[^a-z0-9]+/g, "");
-  return NETWORK_IDS.map((network, i) => ({
-    id: `${idPrefix}${i + 1}`,
-    workspaceId,
-    network,
-    name,
-    handle: `@${handle}`,
-    connected: false,
-    followers: 0,
-    lastSync: null,
-  }));
-}
 
 export const otherAccounts: Account[] = [
   ...inWorkspace<Account>(LUMEN, [

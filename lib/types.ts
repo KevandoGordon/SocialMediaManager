@@ -139,8 +139,9 @@ export interface MediaItem {
   tags: string[];
   /** Two hues used to draw a placeholder when there is no real file. */
   hues: [number, number];
-  /** Object URL for files uploaded in this session. */
+  /** Where the uploaded file is served from; absent for items without a real file. */
   src?: string;
+  mimeType?: string;
   createdAt: string;
 }
 
@@ -188,8 +189,12 @@ export interface Account {
   name: string;
   handle: string;
   connected: boolean;
-  followers: number;
+  /** Null when the network doesn't share a follower count with this app. */
+  followers: number | null;
   lastSync: string | null;
+  /** The network's own id for the connected profile or page. */
+  externalId?: string | null;
+  avatarUrl?: string | null;
 }
 
 export interface DailyMetric {

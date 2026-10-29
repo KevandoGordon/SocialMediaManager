@@ -2,7 +2,8 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useToast } from "@/components/ui/toast";
-import * as api from "./api";
+import type { PostInput, PostPatch } from "./api";
+import { api } from "./client";
 import { ApiError } from "./errors";
 import type {
   Account,
@@ -19,7 +20,6 @@ import type {
   PostMetrics,
   Role,
   Session,
-  User,
   WorkspaceInvitation,
   WorkspaceSettings,
 } from "../types";
@@ -42,7 +42,6 @@ interface WorkspaceData {
 
 type Collection = Exclude<keyof WorkspaceData, "workspaceId" | "settings">;
 
-const DEMO_USER_KEY = "sc.demoUser";
 const activeKey = (userId: string) => `sc.activeWorkspace.${userId}`;
 
 function read(key: string) {
@@ -56,6 +55,12 @@ function write(key: string, value: string) {
   try {
     localStorage.setItem(key, value);
   } catch {}
+}
+
+/** The session cookie expired or was removed: go to sign-in, then come back here. */
+function signedOut() {
+  const here = window.location.pathname + window.location.search;
+  window.location.assign(here === "/" ? "/login" : `/login?next=${encodeURIComponent(here)}`);
 }
 
 function replace<T extends { id: string }>(list: T[], item: T) {
@@ -79,7 +84,6 @@ async function loadWorkspace(workspaceId: string, role: Role): Promise<Workspace
 
 function useStoreValue() {
   const toast = useToast();
-  const [demoUsers, setDemoUsers] = useState<User[]>([]);
   const [session, setSession] = useState<Session | null>(null);
   const [workspaces, setWorkspaces] = useState<MyWorkspace[]>([]);
   const [myInvitations, setMyInvitations] = useState<MyInvitation[]>([]);
@@ -111,25 +115,9 @@ function useStoreValue() {
     return s;
   }, []);
 
-  const signInAs = useCallback(
-    async (userId: string) => {
-      setSessionLoading(true);
-      setData(null);
-      setActiveId(null);
-      activeRef.current = null;
-      setPreviewRoles({});
-      api.demoSignIn(userId);
-      write(DEMO_USER_KEY, userId);
-      await refreshSession();
-    },
-    [refreshSession],
-  );
-
   useEffect(() => {
-    api.listDemoIdentities().then(setDemoUsers);
-    const stored = read(DEMO_USER_KEY);
-    signInAs(stored && stored !== "" ? stored : "u1").catch(() => signInAs("u1"));
-  }, [signInAs]);
+    refreshSession().catch(signedOut);
+  }, [refreshSession]);
 
   // Load the active workspace. Data from the previous workspace is cleared immediately, and a
   // response that arrives after another switch is discarded.
@@ -144,6 +132,7 @@ function useStoreValue() {
       if (token === loadToken.current && activeRef.current === id) setData(loaded);
     } catch (e) {
       if (e instanceof ApiError && token === loadToken.current) {
+        if (e.code === "unauthenticated") return signedOut();
         toast(e.message, "error");
         refreshSession();
       }
@@ -172,6 +161,10 @@ function useStoreValue() {
         return await fn();
       } catch (e) {
         if (!(e instanceof ApiError)) throw e;
+        if (e.code === "unauthenticated") {
+          signedOut();
+          return undefined;
+        }
         toast(e.message, "error");
         if (e.code === "not_found" || e.code === "forbidden") refreshSession();
         reloadWorkspace();
@@ -207,7 +200,7 @@ function useStoreValue() {
           setSession((s) => (s ? { ...s, notifications } : s));
           return notifications;
         }),
-      /** Simulated: no payment. The new session also reloads the active workspace, whose features may have changed. */
+      /** No billing yet, so this applies immediately. The new session also reloads the active workspace, whose features may have changed. */
       changePlan: (planId: PlanId) =>
         run(async () => {
           const plan = await api.changePlan(planId);
@@ -304,7 +297,7 @@ function useStoreValue() {
         }),
 
       // Posts
-      createPost: (input: api.PostInput) =>
+      createPost: (input: PostInput) =>
         run(async () => {
           const id = ws();
           const post = await api.createPost(id, input);
@@ -312,7 +305,7 @@ function useStoreValue() {
           return post;
         }),
       /** Optimistic so drag-and-drop feels instant; reverted by a reload if the server refuses. */
-      updatePost: (postId: string, changes: api.PostPatch) =>
+      updatePost: (postId: string, changes: PostPatch) =>
         run(async () => {
           const id = ws();
           patch(id, "posts", (l) => l.map((p) => (p.id === postId ? { ...p, ...changes } : p)));
@@ -336,10 +329,18 @@ function useStoreValue() {
         }),
 
       // Media
-      uploadMedia: (item: Parameters<typeof api.uploadMedia>[1]) =>
+      /** Files go to the upload route as multipart, not through rpc. */
+      uploadMedia: (file: File, meta: { width: number; height: number; durationSec?: number }) =>
         run(async () => {
           const id = ws();
-          const created = await api.uploadMedia(id, item);
+          const body = new FormData();
+          body.set("workspaceId", id);
+          body.set("file", file);
+          for (const [k, v] of Object.entries(meta)) if (v !== undefined) body.set(k, String(v));
+          const res = await fetch("/api/media/upload", { method: "POST", body });
+          const json = await res.json().catch(() => ({ code: "internal", message: "Upload failed." }));
+          if (!res.ok) throw new ApiError(json.code, json.message);
+          const created = json as MediaItem;
           patch(id, "media", (l) => [created, ...l]);
           return created;
         }),
@@ -377,11 +378,19 @@ function useStoreValue() {
         }),
 
       // Accounts and analytics
-      setAccountConnected: (accountId: string, connected: boolean) =>
+      disconnectAccount: (accountId: string) =>
         run(async () => {
           const id = ws();
-          const account = await api.setAccountConnected(id, accountId, connected);
+          const account = await api.disconnectAccount(id, accountId);
           patch(id, "accounts", (l) => replace(l, account));
+          return account;
+        }),
+      connectionSetup: () => run(() => api.connectionSetup()),
+      getPendingConnection: (choiceId: string) => run(() => api.getPendingConnection(choiceId)),
+      completePendingConnection: (choiceId: string, externalId: string) =>
+        run(async () => {
+          const account = await api.completePendingConnection(choiceId, externalId);
+          patch(account.workspaceId, "accounts", (l) => replace(l, account));
           return account;
         }),
       exportAnalyticsCsv: (opts: Parameters<typeof api.exportAnalyticsCsv>[1]) => run(() => api.exportAnalyticsCsv(ws(), opts)),
@@ -399,11 +408,9 @@ function useStoreValue() {
 
   return {
     // Account
-    demoUsers,
     session,
     currentUser: session?.user,
     sessionLoading,
-    signInAs,
     myInvitations,
     // Workspaces
     workspaces,

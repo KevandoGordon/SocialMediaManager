@@ -151,7 +151,7 @@ export default function TeamPage() {
         <Card>
           <CardHeader
             title="Invitations"
-            description="Email delivery isn't connected in this demo. Invitees see invitations under Workspaces when signed in with that email."
+            description="No email is sent yet. Invitees see invitations under Workspaces when they sign in with that email."
             action={
               <Tabs
                 value={inviteFilter}
@@ -188,7 +188,7 @@ export default function TeamPage() {
                           variant="outline"
                           size="sm"
                           onClick={async () => {
-                            if (await actions.resendInvitation(inv.id)) toast(`Invitation renewed for 7 days (no email sent — demo)`);
+                            if (await actions.resendInvitation(inv.id)) toast(`Invitation renewed for 7 days (no email sent)`);
                           }}
                         >
                           <RotateCw className="h-3.5 w-3.5" />
@@ -262,8 +262,8 @@ function InviteDialog({ open, onClose, grantable }: { open: boolean; onClose: ()
     if (!result) return;
     toast(
       result.accountExists
-        ? `Invitation recorded. ${result.invitation.email} will see it under Workspaces (no email sent — demo).`
-        : `Invitation recorded. No account uses ${result.invitation.email} yet; it'll be waiting when they sign up with it (no email sent — demo).`,
+        ? `Invitation recorded. ${result.invitation.email} will see it under Workspaces (no email sent).`
+        : `Invitation recorded. No account uses ${result.invitation.email} yet; it'll be waiting when they sign up with it (no email sent).`,
     );
     setEmail("");
     onClose();
@@ -301,7 +301,7 @@ function InviteDialog({ open, onClose, grantable }: { open: boolean; onClose: ()
           {grantable.length < ROLES.length && <p className="mt-1 text-xs text-muted">Managers can invite Editors and Viewers.</p>}
         </div>
         <p className="rounded-lg bg-surface-2 p-3 text-xs text-muted">
-          Demo mode: no email is sent. The invitation is valid for 7 days and appears for anyone signed in with this address.
+          No email is sent yet. The invitation is valid for 7 days and appears for anyone signed in with this address.
         </p>
       </form>
     </Dialog>

@@ -61,7 +61,7 @@ export function PageSkeleton() {
   );
 }
 
-/** Shown in place of an action the current role can't perform, so demos make the restriction visible. */
+/** Shown in place of an action the current role can't perform, so the restriction is visible rather than silent. */
 export function PermissionNote({ children }: { children: React.ReactNode }) {
   return (
     <p className="rounded-lg border border-dashed border-border px-3 py-2 text-xs text-muted">{children}</p>

@@ -1,5 +1,5 @@
 import { format } from "date-fns";
-import type { Account, DailyMetric, NetworkId, Post, PostMetrics } from "../types";
+import type { Account, DailyMetric, NetworkId, Post, PostMetrics } from "../../lib/types";
 import { at, seeded } from "./helpers";
 
 const scale: Record<NetworkId, number> = {
@@ -11,7 +11,8 @@ export function buildDaily(workspaceId: string, accounts: Account[], seed: numbe
   const rand = seeded(seed);
   const rows: DailyMetric[] = [];
   for (const account of accounts.filter((a) => a.connected && a.workspaceId === workspaceId)) {
-    const { network, followers: current } = account;
+    const { network } = account;
+    const current = account.followers ?? 0;
     const size = Math.max(0.15, Math.min(2, current / 40_000));
     let followers = Math.round(current * 0.94);
     for (let i = days - 1; i >= 0; i--) {

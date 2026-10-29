@@ -27,7 +27,17 @@ function Content({ children }: { children: React.ReactNode }) {
   return <main className="mx-auto w-full max-w-7xl flex-1 px-4 pt-5 pb-24 sm:px-6 sm:pt-6 md:pb-10">{body}</main>;
 }
 
+const AUTH_PAGES = ["/login", "/signup"];
+
 export function AppShell({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  if (AUTH_PAGES.includes(pathname)) {
+    return (
+      <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+        {children}
+      </ThemeProvider>
+    );
+  }
   return (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
       <ToastProvider>

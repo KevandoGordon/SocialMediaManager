@@ -146,7 +146,7 @@ export default function WorkspacesPage() {
                         setSwitching(true);
                         const changed = await actions.changePlan(id);
                         setSwitching(false);
-                        if (changed) toast(`Switched to ${changed.name} (simulated, no charge)`);
+                        if (changed) toast(`Switched to ${changed.name}. Billing isn't connected, so nothing was charged.`);
                       }}
                     >
                       Switch to {plan.name}
@@ -157,7 +157,7 @@ export default function WorkspacesPage() {
             })}
           </div>
           <p className="border-t border-border px-4 py-3 text-xs text-muted sm:px-5">
-            Demo: switching is instant and simulated. No payment is taken and no billing provider is connected.
+            Plan changes apply instantly. Billing isn&apos;t connected yet, so nothing is charged.
           </p>
         </Card>
       )}

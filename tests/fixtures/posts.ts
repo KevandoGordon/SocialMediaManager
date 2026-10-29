@@ -1,4 +1,4 @@
-import type { Post } from "../types";
+import type { Post } from "../../lib/types";
 import { at, inWorkspace, minutesAgo } from "./helpers";
 import { KESTREL } from "./workspaces";
 

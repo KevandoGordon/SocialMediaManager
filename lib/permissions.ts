@@ -1,5 +1,5 @@
 /**
- * The single source of truth for authorization. Both the mock API (enforcement) and the UI
+ * The single source of truth for authorization. Both the API (enforcement) and the UI
  * (hiding/disabling controls) call into this module; nothing else compares role names.
  */
 import type { Post, Role } from "./types";
@@ -58,7 +58,7 @@ export function can(role: Role | null | undefined, permission: Permission) {
   return !!role && (PERMISSIONS[permission].roles as Role[]).includes(role);
 }
 
-/** The lower of two roles; used by the demo "preview as" lens, which can only ever reduce access. */
+/** The lower of two roles; used by the "preview as" lens, which can only ever reduce access. */
 export function minRole(a: Role, b: Role | undefined) {
   return b && RANK[b] < RANK[a] ? b : a;
 }

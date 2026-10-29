@@ -17,7 +17,7 @@ import { useCan, useStore } from "@/lib/data/store";
 import type { MediaItem } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-/** Reads dimensions from a local file so uploaded media validates like the mock items. */
+/** Reads dimensions from the local file before upload; Compose uses them for each network's checks. */
 function probe(file: File, src: string): Promise<{ width: number; height: number; durationSec?: number }> {
   return new Promise((resolve) => {
     if (file.type.startsWith("video")) {
@@ -58,20 +58,14 @@ export default function MediaPage() {
     const accepted = [...files].filter((f) => f.type.startsWith("image") || f.type.startsWith("video"));
     let uploaded = 0;
     for (const file of accepted) {
+      // A local URL is only used to measure the file; the server keeps the real copy.
       const src = URL.createObjectURL(file);
       const dims = await probe(file, src);
-      const created = await actions.uploadMedia({
-        name: file.name,
-        type: file.type.startsWith("video") ? "video" : "image",
-        sizeKb: Math.round(file.size / 1024),
-        tags: ["uploaded"],
-        hues: [Math.floor(Math.random() * 360), Math.floor(Math.random() * 360)],
-        src,
-        ...dims,
-      });
+      URL.revokeObjectURL(src);
+      const created = await actions.uploadMedia(file, dims);
       if (created) uploaded++;
     }
-    if (uploaded) toast(`Added ${uploaded} file${uploaded > 1 ? "s" : ""} (stored in this browser session only)`);
+    if (uploaded) toast(`Uploaded ${uploaded} file${uploaded > 1 ? "s" : ""}`);
     if (accepted.length < files.length) toast("Only images and videos can be uploaded", "error");
   }
 
@@ -91,7 +85,7 @@ export default function MediaPage() {
     >
       <PageHeader
         title="Media library"
-        description={`${media.length} files · uploads stay in this browser session (mock storage).`}
+        description={`${media.length} file${media.length === 1 ? "" : "s"}`}
         actions={
           <>
             <input ref={fileRef} type="file" accept="image/*,video/*" multiple hidden onChange={(e) => { upload(e.target.files); e.target.value = ""; }} />

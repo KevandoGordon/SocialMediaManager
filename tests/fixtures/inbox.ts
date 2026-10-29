@@ -1,4 +1,4 @@
-import type { InboxItem } from "../types";
+import type { InboxItem } from "../../lib/types";
 import { inWorkspace, minutesAgo } from "./helpers";
 import { KESTREL } from "./workspaces";
 

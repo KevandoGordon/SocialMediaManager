@@ -1,7 +1,6 @@
 /**
- * Mock API. This module plays the part of the server: it owns the data, knows who is "signed in"
- * (a demo session, not real authentication), and authorizes every call. Pages never import mock
- * data directly; they call these functions through the store.
+ * The API. Runs only on the server: the browser reaches it through the rpc server action
+ * (lib/server/rpc.ts), which resolves the signed-in user from the session cookie first.
  *
  * Rules every workspace-scoped function follows, and a real backend must keep:
  * - The caller comes from the session, never from an argument.
@@ -10,12 +9,16 @@
  * - Every record is fetched by (workspaceId, id), so an ID from another workspace is "not found".
  * - Permission checks use the stored membership role, not anything the client sends.
  *
- * Each handler's checks and writes run synchronously before the simulated network delay, so two
- * concurrent calls can't interleave between a check and its write (see createWorkspace).
- * Data lives in memory and resets on page reload. Nothing is emailed, connected or published.
+ * Each handler's checks and writes run synchronously, so two concurrent calls can't interleave
+ * between a check and its write (see createWorkspace). Data is saved to a local file after each
+ * call (lib/server/state.ts). Nothing is emailed or published to a network yet.
  */
 import { format, subDays } from "date-fns";
-import * as seed from "../mock";
+import { DEFAULT_NOTIFICATIONS, placeholderAccounts } from "../defaults";
+import { hashPassword, randomToken, verifyPassword } from "../server/crypto";
+import { persist, state, type ConnectableProfile } from "../server/state";
+import { credentialsFor, PROVIDERS } from "../server/oauth/providers";
+import { readUpload, removeUpload, writeUpload } from "../server/uploads";
 import { NETWORK_IDS } from "../networks";
 import { assignableRoles, can, canDeletePost, canEditPost, PERMISSIONS, type Permission } from "../permissions";
 import { PLANS } from "../plans";
@@ -45,54 +48,73 @@ import type {
 import { uid } from "../utils";
 import { ApiError } from "./errors";
 
-const db = {
-  users: structuredClone(seed.users),
-  workspaces: structuredClone(seed.workspaces),
-  memberships: structuredClone(seed.memberships),
-  invitations: structuredClone(seed.invitations),
-  accountPlans: structuredClone(seed.accountPlans),
-  workspaceSettings: structuredClone(seed.workspaceSettings),
-  notificationPrefs: {} as Record<string, NotificationPrefs>,
-  posts: structuredClone(seed.posts),
-  media: structuredClone(seed.media),
-  inbox: structuredClone(seed.inbox),
-  mentions: structuredClone(seed.mentions),
-  accounts: structuredClone(seed.accounts),
-  dailyMetrics: structuredClone(seed.dailyMetrics),
-  postMetrics: structuredClone(seed.postMetrics),
-};
+const db = state();
 
-const LATENCY_MS = 120;
 const INVITE_TTL_DAYS = 7;
 const WORKSPACE_COLORS = ["#5b4bf5", "#0e7490", "#b45309", "#15803d", "#be185d", "#7c3aed", "#0369a1", "#a16207"];
 
-/** Runs the handler now (atomically), then resolves or rejects after the simulated network delay. */
+/**
+ * Runs the handler synchronously (so it's atomic), saves, and returns a copy. Nothing awaits
+ * before fn runs, which is what keeps the caller set by runAs in place for the whole handler.
+ */
 async function handle<T>(fn: () => T): Promise<T> {
-  let result: T | undefined;
-  let error: unknown;
   try {
-    result = fn();
-  } catch (e) {
-    error = e;
+    return structuredClone(fn());
+  } finally {
+    persist();
   }
-  await new Promise((r) => setTimeout(r, LATENCY_MS));
-  if (error) throw error;
-  return structuredClone(result as T);
 }
 
 // ---------------------------------------------------------------------------
-// Demo session (stands in for an auth cookie; replace with a real auth provider)
+// Session
 
 let sessionUserId: string | null = null;
 
-/** DEMO ONLY: switch the simulated signed-in user. No password, no verification. */
-export function demoSignIn(userId: string) {
-  if (!db.users.some((u) => u.id === userId)) throw new ApiError("not_found", "Unknown demo user");
+/** Runs one API call as the user from the session cookie. Server-only; not reachable over rpc. */
+export function runAs<T>(userId: string | null, fn: () => T): T {
+  const previous = sessionUserId;
+  sessionUserId = userId;
+  try {
+    return fn();
+  } finally {
+    sessionUserId = previous;
+  }
+}
+
+/** Tests only: act as this user for every following call. */
+export function actAsForTests(userId: string | null) {
   sessionUserId = userId;
 }
 
-/** DEMO ONLY: the identities the demo sign-in menu offers. A real app has no such endpoint. */
-export const listDemoIdentities = () => handle(() => db.users);
+const USER_COLORS = ["#5b4bf5", "#0e7490", "#b45309", "#15803d", "#be185d", "#7c3aed"];
+
+/** Creates an account with a password. Server-only (called by the sign-up action). */
+export function registerUser(input: { name: string; email: string; password: string }) {
+  const name = cleanName(input.name, "Name");
+  const email = normalizeEmail(input.email);
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new ApiError("invalid", "Enter a valid email address.");
+  if (input.password.length < 8) throw new ApiError("invalid", "Use at least 8 characters for your password.");
+  if (db.users.some((u) => u.email === email)) throw new ApiError("conflict", "An account with that email already exists. Sign in instead.");
+  const user: User = {
+    id: uid("u"),
+    name,
+    email,
+    title: "",
+    color: USER_COLORS[db.users.length % USER_COLORS.length],
+    lastActive: new Date().toISOString(),
+  };
+  db.users.push(user);
+  db.passwords[user.id] = hashPassword(input.password);
+  persist();
+  return user.id;
+}
+
+/** Returns the user id for a correct email and password, otherwise null. Server-only. */
+export function checkPassword(email: string, password: string) {
+  const user = db.users.find((u) => u.email === normalizeEmail(email));
+  const record = user && db.passwords[user.id];
+  return user && record && verifyPassword(password, record) ? user.id : null;
+}
 
 function requireUser(): User {
   const user = db.users.find((u) => u.id === sessionUserId);
@@ -125,6 +147,13 @@ function scoped<T extends { id: string; workspaceId: string }>(list: T[], worksp
   const item = list.find((x) => x.id === id && x.workspaceId === workspaceId);
   if (!item) throw new ApiError("not_found", `${what} not found.`);
   return item;
+}
+
+/** Copies only the listed keys. Requests come from the browser and can carry any field. */
+function pick<T extends object, K extends keyof T>(obj: T, keys: readonly K[]): Pick<T, K> {
+  const out = {} as Pick<T, K>;
+  if (obj && typeof obj === "object") for (const k of keys) if (Object.prototype.hasOwnProperty.call(obj, k)) out[k] = obj[k];
+  return out;
 }
 
 const inWs = <T extends { workspaceId: string }>(list: T[], workspaceId: string) => list.filter((x) => x.workspaceId === workspaceId);
@@ -164,7 +193,7 @@ export const getSession = () =>
       user,
       plan: planFor(user.id),
       ownedWorkspaceCount: ownedCount(user.id),
-      notifications: db.notificationPrefs[user.id] ?? seed.DEFAULT_NOTIFICATIONS,
+      notifications: db.notificationPrefs[user.id] ?? DEFAULT_NOTIFICATIONS,
     };
   });
 
@@ -172,15 +201,15 @@ export const updateProfile = (patch: { name?: string; title?: string }) =>
   handle(() => {
     const user = requireUser();
     if (patch.name !== undefined) user.name = cleanName(patch.name, "Name");
-    if (patch.title !== undefined) user.title = patch.title.trim().slice(0, 80);
+    if (patch.title !== undefined) user.title = String(patch.title).trim().slice(0, 80);
     return user;
   });
 
 export const updateNotificationPrefs = (prefs: NotificationPrefs) =>
   handle(() => {
     const user = requireUser();
-    db.notificationPrefs[user.id] = prefs;
-    return prefs;
+    db.notificationPrefs[user.id] = { ...DEFAULT_NOTIFICATIONS, ...pick(prefs, Object.keys(DEFAULT_NOTIFICATIONS) as (keyof NotificationPrefs)[]) };
+    return db.notificationPrefs[user.id];
   });
 
 /**
@@ -257,7 +286,7 @@ export const createWorkspace = (input: { name: string }) =>
       requireApproval: true,
       defaultNetworks: [],
     };
-    db.accounts.push(...seed.placeholderAccounts(workspace.id, name, `${workspace.id}_a`));
+    db.accounts.push(...placeholderAccounts(workspace.id, name, `${workspace.id}_a`));
     return workspace;
   });
 
@@ -274,6 +303,7 @@ export const getWorkspaceSettings = (workspaceId: string) =>
 export const updateWorkspaceSettings = (workspaceId: string, patch: Partial<WorkspaceSettings>) =>
   handle(() => {
     const { settings } = authorize(workspaceId, "workspace.settings.update");
+    patch = pick(patch, ["timezone", "weekStartsOn", "requireApproval", "defaultNetworks"]);
     if (patch.defaultNetworks?.some((n) => !NETWORK_IDS.includes(n))) throw new ApiError("invalid", "Unknown network.");
     Object.assign(settings, patch);
     return settings;
@@ -478,6 +508,17 @@ export const declineInvitation = (invitationId: string) =>
 export type PostInput = Pick<Post, "content" | "networks" | "mediaIds" | "scheduledAt" | "status"> & { campaign?: string };
 export type PostPatch = Partial<PostInput>;
 
+const NEW_POST: PostInput = { content: "", networks: [], mediaIds: [], scheduledAt: null, status: "draft" };
+const POST_FIELDS = ["content", "networks", "mediaIds", "scheduledAt", "status", "campaign"] as const;
+
+function cleanPost<T extends PostPatch>(raw: T): T {
+  const input = pick(raw as PostInput, POST_FIELDS) as T;
+  if (input.content !== undefined && typeof input.content !== "string") throw new ApiError("invalid", "Post text must be text.");
+  if (input.networks !== undefined && (!Array.isArray(input.networks) || input.networks.some((n) => !NETWORK_IDS.includes(n)))) throw new ApiError("invalid", "Unknown network.");
+  if (input.mediaIds !== undefined && (!Array.isArray(input.mediaIds) || input.mediaIds.some((m) => typeof m !== "string"))) throw new ApiError("invalid", "Invalid media.");
+  return input;
+}
+
 function checkMedia(workspaceId: string, ids: string[]) {
   for (const id of ids) scoped(db.media, workspaceId, id, "Media");
 }
@@ -525,9 +566,10 @@ function assertTransition(
 
 export const listPosts = (workspaceId: string) => handle(() => (authorize(workspaceId, "posts.view"), inWs(db.posts, workspaceId)));
 
-export const createPost = (workspaceId: string, input: PostInput) =>
+export const createPost = (workspaceId: string, raw: PostInput) =>
   handle(() => {
     const { user, role, settings } = authorize(workspaceId, "posts.create");
+    const input = cleanPost({ ...NEW_POST, ...raw });
     checkMedia(workspaceId, input.mediaIds);
     checkTime(input.scheduledAt);
     if (input.scheduledAt && !can(role, "posts.schedule")) throw new ApiError("forbidden", "You can't schedule posts.");
@@ -546,8 +588,9 @@ export const createPost = (workspaceId: string, input: PostInput) =>
     return post;
   });
 
-export const updatePost = (workspaceId: string, id: string, patch: PostPatch) =>
+export const updatePost = (workspaceId: string, id: string, raw: PostPatch) =>
   handle(() => {
+    const patch = cleanPost(raw);
     const { user, role, settings } = authorize(workspaceId, "posts.view");
     const post = scoped(db.posts, workspaceId, id, "Post");
     if (post.status === "published") throw new ApiError("invalid", "Published posts can't be changed.");
@@ -597,13 +640,49 @@ export const commentOnPost = (workspaceId: string, postId: string, body: string)
 
 export const listMedia = (workspaceId: string) => handle(() => (authorize(workspaceId, "media.view"), inWs(db.media, workspaceId)));
 
-export const uploadMedia = (workspaceId: string, item: Omit<MediaItem, "id" | "createdAt" | "workspaceId">) =>
+export const MAX_UPLOAD_BYTES = 200 * 1024 * 1024;
+
+/** Server-only (the upload route). Stores the file, then the record that points at it. */
+export const uploadMedia = (
+  workspaceId: string,
+  file: { name: string; mimeType: string; data: Buffer },
+  meta: { width: number; height: number; durationSec?: number },
+) =>
   handle(() => {
     authorize(workspaceId, "media.upload");
-    const created: MediaItem = { ...item, id: uid("m"), workspaceId, createdAt: new Date().toISOString() };
+    const type = file.mimeType.startsWith("video/") ? "video" : file.mimeType.startsWith("image/") ? "image" : null;
+    if (!type) throw new ApiError("invalid", "Only images and videos can be uploaded.");
+    if (file.data.length > MAX_UPLOAD_BYTES) throw new ApiError("invalid", "Files can be up to 200 MB.");
+    const id = uid("m");
+    writeUpload(id, file.data);
+    const created: MediaItem = {
+      id,
+      workspaceId,
+      name: file.name.slice(0, 200),
+      type,
+      mimeType: file.mimeType,
+      width: Math.max(1, Math.round(meta.width) || 1),
+      height: Math.max(1, Math.round(meta.height) || 1),
+      durationSec: type === "video" && meta.durationSec ? Math.round(meta.durationSec) : undefined,
+      sizeKb: Math.round(file.data.length / 1024),
+      tags: [],
+      hues: [Math.floor(Math.random() * 360), Math.floor(Math.random() * 360)],
+      src: `/api/media/${id}`,
+      createdAt: new Date().toISOString(),
+    };
     db.media.unshift(created);
     return created;
   });
+
+/** Server-only (the file route). The file of a media item, if the caller can view its workspace. */
+export function readMediaFile(id: string) {
+  const item = db.media.find((m) => m.id === id);
+  if (!item) throw new ApiError("not_found", "Media not found.");
+  authorize(item.workspaceId, "media.view");
+  const data = readUpload(id);
+  if (!data) throw new ApiError("not_found", "File not found.");
+  return { data, mimeType: item.mimeType ?? "application/octet-stream", name: item.name };
+}
 
 export const updateMediaTags = (workspaceId: string, id: string, tags: string[]) =>
   handle(() => {
@@ -618,6 +697,7 @@ export const deleteMedia = (workspaceId: string, id: string) =>
     authorize(workspaceId, "media.delete");
     const item = scoped(db.media, workspaceId, id, "Media");
     db.media = db.media.filter((m) => m !== item);
+    removeUpload(id);
     for (const p of inWs(db.posts, workspaceId)) p.mediaIds = p.mediaIds.filter((m) => m !== id);
     return { id };
   });
@@ -629,6 +709,7 @@ export const listInbox = (workspaceId: string) => handle(() => (authorize(worksp
 
 export const updateInboxItem = (workspaceId: string, id: string, patch: Partial<Pick<InboxItem, "read" | "status" | "assigneeId">>) =>
   handle(() => {
+    patch = pick(patch, ["read", "status", "assigneeId"]);
     authorize(workspaceId, patch.assigneeId !== undefined ? "inbox.assign" : patch.status ? "inbox.reply" : "inbox.view");
     const item = scoped(db.inbox, workspaceId, id, "Conversation");
     if (patch.assigneeId) {
@@ -657,13 +738,112 @@ export const listMentions = (workspaceId: string) => handle<Mention[]>(() => (au
 
 export const listAccounts = (workspaceId: string) => handle<Account[]>(() => (authorize(workspaceId, "accounts.view"), inWs(db.accounts, workspaceId)));
 
-/** Simulated: flips a flag. A real connection runs the network's OAuth flow and stores tokens server-side. */
-export const setAccountConnected = (workspaceId: string, id: string, connected: boolean) =>
+// Connecting runs the network's OAuth flow in app/api/connect/. These functions are its server-side
+// steps; tokens are stored encrypted in accountTokens and never returned to the browser.
+
+/** Which networks have app credentials in .env.local, and what to set for the rest. */
+export const connectionSetup = () =>
+  handle(() => {
+    requireUser();
+    return Object.fromEntries(
+      NETWORK_IDS.map((n) => [n, { configured: !!credentialsFor(n), idEnv: PROVIDERS[n].idEnv, secretEnv: PROVIDERS[n].secretEnv, consoleUrl: PROVIDERS[n].consoleUrl }]),
+    ) as Record<NetworkId, { configured: boolean; idEnv: string; secretEnv: string; consoleUrl: string }>;
+  });
+
+const CONNECT_TTL_MS = 10 * 60_000;
+const expired = (at: string) => new Date(at).getTime() < Date.now();
+
+function dropExpiredConnections() {
+  for (const [k, a] of Object.entries(db.oauthAttempts)) if (expired(a.expiresAt)) delete db.oauthAttempts[k];
+  for (const [k, p] of Object.entries(db.pendingConnections)) if (expired(p.expiresAt)) delete db.pendingConnections[k];
+}
+
+/** Server-only. Checks the caller may manage accounts here and records the attempt; returns the OAuth state value. */
+export function beginConnection(workspaceId: string, network: NetworkId, verifier: string | null) {
+  const { user } = authorize(workspaceId, "accounts.manage");
+  if (!NETWORK_IDS.includes(network)) throw new ApiError("invalid", "Unknown network.");
+  dropExpiredConnections();
+  const key = randomToken();
+  db.oauthAttempts[key] = { userId: user.id, workspaceId, network, verifier, expiresAt: new Date(Date.now() + CONNECT_TTL_MS).toISOString() };
+  persist();
+  return key;
+}
+
+/** Server-only. Uses up the attempt named by the callback's state; it must belong to the same signed-in user. */
+export function takeConnectionAttempt(key: string, network: NetworkId) {
+  const user = requireUser();
+  const attempt = db.oauthAttempts[key];
+  delete db.oauthAttempts[key];
+  persist();
+  if (!attempt || attempt.userId !== user.id || attempt.network !== network || expired(attempt.expiresAt)) {
+    throw new ApiError("invalid", "That connection attempt expired or didn't start here. Try connecting again.");
+  }
+  return attempt;
+}
+
+function attachProfile(workspaceId: string, network: NetworkId, profile: ConnectableProfile) {
+  // Re-checked here because the role may have changed during the round trip to the network.
+  authorize(workspaceId, "accounts.manage");
+  const account = db.accounts.find((a) => a.workspaceId === workspaceId && a.network === network);
+  if (!account) throw new ApiError("not_found", "Account not found.");
+  Object.assign(account, {
+    name: profile.name,
+    handle: profile.handle,
+    followers: profile.followers,
+    avatarUrl: profile.avatarUrl,
+    externalId: profile.externalId,
+    connected: true,
+    lastSync: new Date().toISOString(),
+  });
+  db.accountTokens[account.id] = profile.encryptedToken;
+  return account;
+}
+
+/** Server-only. One profile: connect it. Several (e.g. Facebook Pages): park them and return a choice id. */
+export function finishConnection(workspaceId: string, network: NetworkId, profiles: ConnectableProfile[]) {
+  if (!profiles.length) throw new ApiError("invalid", "The network didn't return any profile or page to connect.");
+  if (profiles.length === 1) {
+    attachProfile(workspaceId, network, profiles[0]);
+    persist();
+    return { connected: true as const };
+  }
+  const { user } = authorize(workspaceId, "accounts.manage");
+  const choiceId = randomToken();
+  db.pendingConnections[choiceId] = { userId: user.id, workspaceId, network, options: profiles, expiresAt: new Date(Date.now() + CONNECT_TTL_MS).toISOString() };
+  persist();
+  return { connected: false as const, choiceId };
+}
+
+function pendingFor(choiceId: string) {
+  const user = requireUser();
+  const pending = db.pendingConnections[choiceId];
+  if (!pending || pending.userId !== user.id || expired(pending.expiresAt)) throw new ApiError("not_found", "This choice expired. Connect the account again.");
+  authorize(pending.workspaceId, "accounts.manage");
+  return pending;
+}
+
+export const getPendingConnection = (choiceId: string) =>
+  handle(() => {
+    const { workspaceId, network, options } = pendingFor(choiceId);
+    return { workspaceId, network, options: options.map(({ externalId, name, handle, followers, avatarUrl }) => ({ externalId, name, handle, followers, avatarUrl })) };
+  });
+
+export const completePendingConnection = (choiceId: string, externalId: string) =>
+  handle(() => {
+    const pending = pendingFor(choiceId);
+    const profile = pending.options.find((o) => o.externalId === externalId);
+    if (!profile) throw new ApiError("invalid", "Pick one of the listed pages.");
+    delete db.pendingConnections[choiceId];
+    return attachProfile(pending.workspaceId, pending.network, profile);
+  });
+
+/** Forgets the stored token. The app's access also has to be removed on the network's side to fully revoke it. */
+export const disconnectAccount = (workspaceId: string, id: string) =>
   handle(() => {
     authorize(workspaceId, "accounts.manage");
     const account = scoped(db.accounts, workspaceId, id, "Account");
-    account.connected = connected;
-    account.lastSync = connected ? new Date().toISOString() : null;
+    delete db.accountTokens[account.id];
+    Object.assign(account, { connected: false, lastSync: null, followers: null, externalId: null, avatarUrl: null });
     return account;
   });
 

@@ -1,4 +1,4 @@
-import type { MediaItem } from "../types";
+import type { MediaItem } from "../../lib/types";
 import { at, inWorkspace } from "./helpers";
 import { KESTREL } from "./workspaces";
 

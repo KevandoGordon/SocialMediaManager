@@ -2,7 +2,7 @@ import { Play } from "lucide-react";
 import type { MediaItem } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-/** Renders an uploaded file, or a generated gradient placeholder for mock media. */
+/** Renders an uploaded file, or a gradient placeholder for items without a file. */
 export function MediaThumb({
   item,
   aspect,

@@ -38,7 +38,7 @@ export default function DashboardPage() {
   const prevImpressions = sum(previous, "impressions");
   const rate = impressions ? sum(recent, "engagements") / impressions : 0;
   const prevRate = prevImpressions ? sum(previous, "engagements") / prevImpressions : 0;
-  const followers = accounts.filter((a) => a.connected).reduce((s, a) => s + a.followers, 0);
+  const followers = accounts.filter((a) => a.connected).reduce((s, a) => s + (a.followers ?? 0), 0);
 
   const thisWeek = upcoming.filter((p) => new Date(p.scheduledAt!) < subDays(now, -7)).length;
 
@@ -152,16 +152,16 @@ export default function DashboardPage() {
         <Card>
           <CardHeader title="Followers by network" />
           <CardBody className="space-y-3">
-            {[...accounts].sort((a, b) => b.followers - a.followers).map((a) => {
-              const max = Math.max(1, ...accounts.map((x) => x.followers));
+            {[...accounts].sort((a, b) => (b.followers ?? 0) - (a.followers ?? 0)).map((a) => {
+              const max = Math.max(1, ...accounts.map((x) => x.followers ?? 0));
               return (
                 <div key={a.id} className="flex items-center gap-3 text-sm">
                   <NetworkIcon network={a.network} size={20} />
                   <span className="w-20 shrink-0 truncate">{NETWORKS[a.network].name}</span>
                   <div className="h-2 flex-1 overflow-hidden rounded-full bg-surface-2">
-                    <div className="h-full rounded-full bg-primary" style={{ width: `${(a.followers / max) * 100}%`, opacity: a.connected ? 1 : 0.35 }} />
+                    <div className="h-full rounded-full bg-primary" style={{ width: `${((a.followers ?? 0) / max) * 100}%`, opacity: a.connected ? 1 : 0.35 }} />
                   </div>
-                  <span className="w-12 text-right text-xs tabular-nums text-muted">{compact(a.followers)}</span>
+                  <span className="w-12 text-right text-xs tabular-nums text-muted">{a.followers === null ? "—" : compact(a.followers)}</span>
                 </div>
               );
             })}

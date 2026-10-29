@@ -1,4 +1,4 @@
-import type { Mention } from "../types";
+import type { Mention } from "../../lib/types";
 import { inWorkspace, minutesAgo } from "./helpers";
 import { KESTREL } from "./workspaces";
 

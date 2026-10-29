@@ -1,11 +1,10 @@
 import type {
-  NotificationPrefs,
   PlanId,
   Workspace,
   WorkspaceInvitation,
   WorkspaceMembership,
   WorkspaceSettings,
-} from "../types";
+} from "../../lib/types";
 import { at, minutesAgo } from "./helpers";
 
 export const KESTREL = "ws_kestrel";
@@ -67,11 +66,4 @@ export const workspaceSettings: Record<string, WorkspaceSettings> = {
   [HARBOR]: { timezone: "America/Chicago", weekStartsOn: 1, requireApproval: true, defaultNetworks: ["facebook", "linkedin"] },
 };
 
-export const DEFAULT_NOTIFICATIONS: NotificationPrefs = {
-  approvalRequests: true,
-  approvalDecisions: true,
-  newMessages: true,
-  negativeMentions: true,
-  weeklyReport: false,
-  channel: "both",
-};
+export { DEFAULT_NOTIFICATIONS } from "../../lib/defaults";
