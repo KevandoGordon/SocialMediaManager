@@ -1,11 +1,11 @@
 import type { Post } from "../types";
 import { at, inWorkspace, minutesAgo } from "./helpers";
-import { NORTHWIND } from "./workspaces";
+import { KESTREL } from "./workspaces";
 
-export const posts = inWorkspace<Post>(NORTHWIND, [
+export const posts = inWorkspace<Post>(KESTREL, [
   {
     id: "p1",
-    content: "Our autumn collection is here 🍂 Cozy layers, warm tones, and pieces built to last. Shop the drop before it's gone → https://northwind.shop/autumn #AutumnDrop #SlowFashion",
+    content: "Our autumn collection is here 🍂 Cozy layers, warm tones, and pieces built to last. Shop the drop before it's gone → https://kestrelstudio.example/autumn #AutumnDrop #SlowFashion",
     networks: ["instagram", "facebook", "pinterest"],
     mediaIds: ["m1"],
     scheduledAt: at(1, 10, 0),
@@ -17,7 +17,7 @@ export const posts = inWorkspace<Post>(NORTHWIND, [
   },
   {
     id: "p2",
-    content: "We're hiring! Join a team that ships thoughtful work and takes Fridays seriously. Open roles in design, engineering and community. https://northwind.agency/careers",
+    content: "We're hiring! Join a team that ships thoughtful work and takes Fridays seriously. Open roles in design, engineering and community. https://kestrelstudio.example/careers",
     networks: ["linkedin", "x", "threads"],
     mediaIds: ["m2"],
     scheduledAt: at(2, 9, 30),
@@ -64,7 +64,7 @@ export const posts = inWorkspace<Post>(NORTHWIND, [
   },
   {
     id: "p6",
-    content: "Live webinar next Thursday: 'Building a content engine on a startup budget'. Practical templates, real numbers, live Q&A. Save your seat: https://northwind.agency/webinar",
+    content: "Live webinar next Thursday: 'Building a content engine on a startup budget'. Practical templates, real numbers, live Q&A. Save your seat: https://kestrelstudio.example/webinar",
     networks: ["linkedin", "facebook", "x"],
     mediaIds: ["m6"],
     scheduledAt: at(5, 12, 0),

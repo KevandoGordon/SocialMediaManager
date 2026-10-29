@@ -2,14 +2,14 @@
  * Seed data for the mock API. Only lib/data/api.ts may import from here; pages and components
  * always go through the API so the workspace and permission checks apply.
  */
-import { accounts as northwindAccounts } from "./accounts";
+import { accounts as kestrelAccounts } from "./accounts";
 import { buildDaily, buildPostMetrics } from "./analytics";
-import { inbox as northwindInbox } from "./inbox";
-import { media as northwindMedia } from "./media";
-import { mentions as northwindMentions } from "./mentions";
+import { inbox as kestrelInbox } from "./inbox";
+import { media as kestrelMedia } from "./media";
+import { mentions as kestrelMentions } from "./mentions";
 import { otherAccounts, otherInbox, otherMedia, otherMentions, otherPosts } from "./other-workspaces";
-import { posts as northwindPosts } from "./posts";
-import { ATLAS, LUMEN, NORTHWIND } from "./workspaces";
+import { posts as kestrelPosts } from "./posts";
+import { ATLAS, LUMEN, KESTREL } from "./workspaces";
 
 export { users } from "./users";
 export {
@@ -22,14 +22,14 @@ export {
 } from "./workspaces";
 export { placeholderAccounts } from "./other-workspaces";
 
-export const accounts = [...northwindAccounts, ...otherAccounts];
-export const posts = [...northwindPosts, ...otherPosts];
-export const media = [...northwindMedia, ...otherMedia];
-export const inbox = [...northwindInbox, ...otherInbox];
-export const mentions = [...northwindMentions, ...otherMentions];
+export const accounts = [...kestrelAccounts, ...otherAccounts];
+export const posts = [...kestrelPosts, ...otherPosts];
+export const media = [...kestrelMedia, ...otherMedia];
+export const inbox = [...kestrelInbox, ...otherInbox];
+export const mentions = [...kestrelMentions, ...otherMentions];
 
 export const dailyMetrics = [
-  ...buildDaily(NORTHWIND, accounts, 42),
+  ...buildDaily(KESTREL, accounts, 42),
   ...buildDaily(LUMEN, accounts, 43),
   ...buildDaily(ATLAS, accounts, 44),
 ];

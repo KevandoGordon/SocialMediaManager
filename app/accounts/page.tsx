@@ -113,7 +113,7 @@ export default function AccountsPage() {
           <div className="space-y-3 text-sm">
             <div className="flex items-center gap-3">
               <NetworkIcon network={connecting.network} size={36} className="rounded-lg" />
-              <p>Northwind Social will be able to:</p>
+              <p>Social Connect will be able to:</p>
             </div>
             <ul className="list-disc space-y-1 pl-5 text-muted">
               <li>Publish and schedule posts to {connecting.handle}</li>

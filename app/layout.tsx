@@ -7,7 +7,7 @@ const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: { default: "Northwind Social", template: "%s · Northwind Social" },
+  title: { default: "Social Connect", template: "%s · Social Connect" },
   description: "Plan, publish and track social content across eight networks.",
 };
 

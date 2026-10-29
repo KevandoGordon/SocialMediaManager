@@ -1,4 +1,4 @@
-/** Seed content for the non-Northwind demo workspaces. Harbor Health is intentionally empty. */
+/** Seed content for the non-Kestrel demo workspaces. Harbor Health is intentionally empty. */
 import { NETWORK_IDS } from "../networks";
 import type { Account, InboxItem, MediaItem, Mention, Post } from "../types";
 import { at, inWorkspace, minutesAgo } from "./helpers";

@@ -1,8 +1,8 @@
 import type { MediaItem } from "../types";
 import { at, inWorkspace } from "./helpers";
-import { NORTHWIND } from "./workspaces";
+import { KESTREL } from "./workspaces";
 
-export const media = inWorkspace<MediaItem>(NORTHWIND, [
+export const media = inWorkspace<MediaItem>(KESTREL, [
   { id: "m1", name: "autumn-launch-hero.jpg", type: "image", width: 2400, height: 1600, sizeKb: 812, tags: ["autumn", "launch", "hero"], hues: [24, 340], createdAt: at(-20) },
   { id: "m2", name: "team-offsite.jpg", type: "image", width: 2000, height: 2000, sizeKb: 640, tags: ["team", "culture"], hues: [200, 260], createdAt: at(-18) },
   { id: "m3", name: "product-closeup.jpg", type: "image", width: 1600, height: 2000, sizeKb: 530, tags: ["product", "studio"], hues: [160, 210], createdAt: at(-15) },

@@ -20,7 +20,7 @@ npm run dev      # http://localhost:3000
 
 The dashed **Demo** menu in the header is a simulated sign-in, not authentication. Pick a seeded account to see the app as them:
 
-| Account | Northwind | Lumen Coffee | Atlas Outdoor | Harbor Health |
+| Account | Kestrel Studio | Lumen Coffee | Atlas Outdoor | Harbor Health |
 |---|---|---|---|---|
 | Jordan Lee | **Owner**, Admin | Editor | Viewer | invited as Manager |
 | Priya Shah | Manager | invited as Viewer | Admin | **Owner**, Admin |

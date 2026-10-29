@@ -68,12 +68,16 @@ function MediaBlock({ media, aspect, className }: { media: MediaItem[]; aspect: 
   );
 }
 
+function initial(account?: Account) {
+  return (account?.name ?? "Your brand").charAt(0).toUpperCase();
+}
+
 function ProfileRow({ account, network, subtitle }: { account?: Account; network: NetworkId; subtitle?: string }) {
   return (
     <div className="flex items-center gap-2.5">
-      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">N</span>
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">{initial(account)}</span>
       <div className="min-w-0 flex-1 leading-tight">
-        <p className="truncate text-sm font-semibold">{account?.name ?? "Northwind"}</p>
+        <p className="truncate text-sm font-semibold">{account?.name ?? "Your brand"}</p>
         <p className="truncate text-xs text-muted">{subtitle ?? account?.handle}</p>
       </div>
       <NetworkIcon network={network} size={18} />
@@ -126,7 +130,7 @@ export function PostPreview({
               <div className="flex aspect-[9/16] items-center justify-center bg-neutral-900 p-6 text-center text-xs text-neutral-400">TikTok needs a vertical video</div>
             )}
             <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-3 pt-12 text-white">
-              <p className="text-sm font-semibold">{account?.handle ?? "@northwind"}</p>
+              <p className="text-sm font-semibold">{account?.handle ?? "@yourbrand"}</p>
               <Caption network={network} text={content} accent="#fff" className="text-[13px] [&_span]:!text-white" />
             </div>
           </div>
@@ -163,8 +167,8 @@ export function PostPreview({
             <p className="line-clamp-2 text-sm font-semibold">{title}</p>
             {rest.length > 0 && <Caption network={network} text={rest.join(" ")} accent={accent} className="text-xs text-muted" />}
             <div className="mt-2 flex items-center gap-2 text-xs">
-              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">N</span>
-              {account?.name ?? "Northwind"}
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">{initial(account)}</span>
+              {account?.name ?? "Your brand"}
             </div>
           </div>
         </div>
@@ -176,10 +180,10 @@ export function PostPreview({
       return (
         <div className={cn(frame, "p-3")}>
           <div className="flex gap-2.5">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">N</span>
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">{initial(account)}</span>
             <div className="min-w-0 flex-1">
               <p className="flex items-center gap-1 text-sm">
-                <span className="font-semibold">{account?.name ?? "Northwind"}</span>
+                <span className="font-semibold">{account?.name ?? "Your brand"}</span>
                 <span className="truncate text-muted">{account?.handle} · now</span>
                 <MoreHorizontal className="ml-auto h-4 w-4 text-muted" />
               </p>

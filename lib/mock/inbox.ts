@@ -1,8 +1,8 @@
 import type { InboxItem } from "../types";
 import { inWorkspace, minutesAgo } from "./helpers";
-import { NORTHWIND } from "./workspaces";
+import { KESTREL } from "./workspaces";
 
-export const inbox = inWorkspace<InboxItem>(NORTHWIND, [
+export const inbox = inWorkspace<InboxItem>(KESTREL, [
   { id: "i1", network: "instagram", kind: "comment", from: { name: "Hana K.", handle: "@hanakwrites" }, body: "Is the camel coat available in petite sizes? 😍", receivedAt: minutesAgo(8), postId: "p5", assigneeId: null, status: "open", read: false, replies: [] },
   { id: "i2", network: "facebook", kind: "dm", from: { name: "Daniel Ortiz", handle: "daniel.ortiz" }, body: "Hi! My order #4821 hasn't shipped yet and it's been 6 days. Can you check?", receivedAt: minutesAgo(25), assigneeId: "u4", status: "open", read: false, replies: [] },
   { id: "i3", network: "x", kind: "comment", from: { name: "Ravi", handle: "@ravibuilds" }, body: "Those Q3 numbers are wild. What drove the jump in saves?", receivedAt: minutesAgo(70), postId: "p4", assigneeId: null, status: "open", read: true, replies: [] },
