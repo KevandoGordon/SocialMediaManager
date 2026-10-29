@@ -63,11 +63,25 @@ function ChartTooltip({ active, payload, label, labelFormat }: TooltipProps<numb
   );
 }
 
+const RANGES = [
+  { value: "7", label: "7 days" },
+  { value: "14", label: "14 days" },
+  { value: "30", label: "30 days" },
+  { value: "90", label: "90 days" },
+  { value: "365", label: "12 months" },
+] as const;
+type Range = (typeof RANGES)[number]["value"];
+
 export default function AnalyticsPage() {
-  const { daily, postMetrics, posts, actions } = useStore();
+  const { daily, postMetrics, posts, actions, activeWorkspace } = useStore();
   const can = useCan();
   const toast = useToast();
-  const [range, setRange] = useState<"7" | "14" | "30">("30");
+  // History length and export come from the workspace owner's plan; the API enforces both.
+  const plan = activeWorkspace?.plan;
+  const historyDays = plan?.analyticsHistoryDays ?? 30;
+  const ranges = RANGES.filter((r) => Number(r.value) <= historyDays);
+  const [rangeChoice, setRange] = useState<Range>("30");
+  const range = ranges.some((r) => r.value === rangeChoice) ? rangeChoice : "30";
   const [network, setNetwork] = useState<NetworkId | "all">("all");
   const [metric, setMetric] = useState<Metric>("impressions");
   const [mixAsTable, setMixAsTable] = useState(false);
@@ -79,6 +93,8 @@ export default function AnalyticsPage() {
   const inNetwork = (n: NetworkId) => network === "all" || n === network;
   const rows = daily.filter((d) => d.date >= start && inNetwork(d.network));
   const prevRows = daily.filter((d) => d.date >= prevStart && d.date < start && inNetwork(d.network));
+  // Only compare when the plan's history covers the whole previous period.
+  const comparable = daily.some((d) => d.date <= prevStart);
 
   const total = (list: typeof rows, key: "impressions" | "engagements" | "clicks") => list.reduce((s, r) => s + r[key], 0);
   const followersAt = (date: string) => daily.filter((d) => d.date === date && inNetwork(d.network)).reduce((s, r) => s + r.followers, 0);
@@ -139,6 +155,11 @@ export default function AnalyticsPage() {
   const prevImp = total(prevRows, "impressions");
   const prevEng = total(prevRows, "engagements");
   const selected = topPosts.find((r) => r.post.id === openPost);
+  const exportBlocked = !can("analytics.export")
+    ? "Managers and Admins can export reports"
+    : !plan?.csvExport
+      ? "CSV export comes with Pro and Agency"
+      : null;
 
   if (daily.length === 0) {
     return (
@@ -161,17 +182,10 @@ export default function AnalyticsPage() {
         title="Analytics"
         description="Performance across networks and posts."
         actions={
-          can("analytics.export") ? (
-            <Button variant="outline" onClick={exportCsv}>
-              <Download className="h-4 w-4" />
-              Export CSV
-            </Button>
-          ) : (
-            <Button variant="outline" disabled title="Managers and Admins can export reports">
-              <Download className="h-4 w-4" />
-              Export CSV
-            </Button>
-          )
+          <Button variant="outline" onClick={exportCsv} disabled={!!exportBlocked} title={exportBlocked ?? undefined}>
+            <Download className="h-4 w-4" />
+            Export CSV
+          </Button>
         }
       />
 
@@ -179,11 +193,7 @@ export default function AnalyticsPage() {
         <Tabs
           value={range}
           onChange={setRange}
-          items={[
-            { value: "7", label: "7 days" },
-            { value: "14", label: "14 days" },
-            { value: "30", label: "30 days" },
-          ]}
+          items={[...ranges]}
         />
         <Select aria-label="Network" value={network} onChange={(e) => setNetwork(e.target.value as NetworkId | "all")} className="w-auto">
           <option value="all">All networks</option>
@@ -191,11 +201,16 @@ export default function AnalyticsPage() {
             <option key={n} value={n}>{NETWORKS[n].name}</option>
           ))}
         </Select>
+        {plan && historyDays < 365 && (
+          <p className="text-xs text-muted">
+            {plan.name} plan: last {historyDays} days. 12 months of history comes with Pro.
+          </p>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard label="Impressions" value={compact(impressions)} delta={prevImp ? impressions / prevImp - 1 : undefined} hint={`vs. prior ${days}d`} icon={<Eye className="h-4 w-4" />} />
-        <StatCard label="Engagements" value={compact(engagements)} delta={prevEng ? engagements / prevEng - 1 : undefined} hint={`${percent(engagements / impressions)} rate`} icon={<Heart className="h-4 w-4" />} />
+        <StatCard label="Impressions" value={compact(impressions)} delta={comparable && prevImp ? impressions / prevImp - 1 : undefined} hint={comparable ? `vs. prior ${days}d` : "No earlier period"} icon={<Eye className="h-4 w-4" />} />
+        <StatCard label="Engagements" value={compact(engagements)} delta={comparable && prevEng ? engagements / prevEng - 1 : undefined} hint={`${percent(engagements / impressions)} rate`} icon={<Heart className="h-4 w-4" />} />
         <StatCard label="Link clicks" value={compact(total(rows, "clicks"))} hint={`${percent(total(rows, "clicks") / impressions, 2)} CTR`} icon={<MousePointerClick className="h-4 w-4" />} />
         <StatCard label="Follower growth" value={`${followerGain >= 0 ? "+" : ""}${compact(followerGain)}`} hint={`${compact(followersAt(lastDate))} total`} icon={<Users className="h-4 w-4" />} />
       </div>

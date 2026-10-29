@@ -57,8 +57,8 @@ export const invitations: WorkspaceInvitation[] = [
   { id: "inv6", workspaceId: LUMEN, email: "priya@kestrelstudio.example", role: "Viewer", invitedByUserId: "u7", status: "pending", createdAt: minutesAgo(DAY * 3), expiresAt: at(4), lastSentAt: minutesAgo(DAY * 3), sendCount: 1, respondedAt: null },
 ];
 
-/** Billing entitlement per owning account. Everyone is on the free plan for now. */
-export const accountPlans: Record<string, PlanId> = {};
+/** Billing entitlement per account; anyone not listed is on Free. */
+export const accountPlans: Record<string, PlanId> = { u1: "pro", u8: "agency" };
 
 export const workspaceSettings: Record<string, WorkspaceSettings> = {
   [KESTREL]: { timezone: "America/New_York", weekStartsOn: 1, requireApproval: true, defaultNetworks: ["instagram", "facebook", "linkedin"] },

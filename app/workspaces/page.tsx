@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
-import { Crown, LogOut, Plus } from "lucide-react";
+import { Check, Crown, LogOut, Plus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader } from "@/components/ui/card";
@@ -14,7 +14,9 @@ import { CreateWorkspaceDialog, useCreationAllowance } from "@/components/worksp
 import { MyInvitations } from "@/components/workspace/my-invitations";
 import { WorkspaceAvatar } from "@/components/workspace/workspace-avatar";
 import { useStore } from "@/lib/data/store";
+import { PLAN_ORDER, PLANS, planFeatures } from "@/lib/plans";
 import type { MyWorkspace } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 export default function WorkspacesPage() {
   const { workspaces, activeWorkspace, switchWorkspace, session, actions } = useStore();
@@ -23,6 +25,7 @@ export default function WorkspacesPage() {
   const router = useRouter();
   const [createOpen, setCreateOpen] = useState(false);
   const [leaving, setLeaving] = useState<MyWorkspace | null>(null);
+  const [switching, setSwitching] = useState(false);
 
   return (
     <div className="space-y-6">
@@ -102,6 +105,62 @@ export default function WorkspacesPage() {
           <EmptyState title="No workspaces yet" description="Create one, or accept an invitation above." />
         )}
       </Card>
+
+      {session && (
+        <Card>
+          <CardHeader
+            title="Plan"
+            description="Priced per owner account, not per seat. Your plan's features apply to every workspace you own, for all of its members."
+          />
+          <div className="grid gap-3 p-4 sm:grid-cols-3 sm:p-5">
+            {PLAN_ORDER.map((id) => {
+              const plan = PLANS[id];
+              const current = session.plan.id === id;
+              const tooSmall = session.ownedWorkspaceCount > plan.workspaceCreationLimit;
+              return (
+                <div key={id} className={cn("flex flex-col rounded-xl border p-4", current ? "border-primary ring-1 ring-primary" : "border-border")}>
+                  <p className="flex items-center justify-between gap-2 text-sm font-semibold">
+                    {plan.name}
+                    {current && <Badge tone="primary">Current</Badge>}
+                  </p>
+                  <p className="mt-1 text-2xl font-semibold tracking-tight">
+                    ${plan.priceMonthlyUsd}
+                    <span className="text-sm font-normal text-muted">{plan.priceMonthlyUsd ? " / month" : " forever"}</span>
+                  </p>
+                  <ul className="mt-3 flex-1 space-y-1.5 text-sm">
+                    {planFeatures(plan).map((f) => (
+                      <li key={f} className="flex gap-2">
+                        <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted" />
+                        {f}
+                      </li>
+                    ))}
+                  </ul>
+                  {!current && (
+                    <Button
+                      className="mt-4"
+                      variant="outline"
+                      size="sm"
+                      disabled={switching || tooSmall}
+                      title={tooSmall ? `You own ${session.ownedWorkspaceCount} workspaces; ${plan.name} allows ${plan.workspaceCreationLimit}` : undefined}
+                      onClick={async () => {
+                        setSwitching(true);
+                        const changed = await actions.changePlan(id);
+                        setSwitching(false);
+                        if (changed) toast(`Switched to ${changed.name} (simulated, no charge)`);
+                      }}
+                    >
+                      Switch to {plan.name}
+                    </Button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <p className="border-t border-border px-4 py-3 text-xs text-muted sm:px-5">
+            Demo: switching is instant and simulated. No payment is taken and no billing provider is connected.
+          </p>
+        </Card>
+      )}
 
       <CreateWorkspaceDialog open={createOpen} onClose={() => setCreateOpen(false)} />
       <Dialog

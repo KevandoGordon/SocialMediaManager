@@ -14,6 +14,7 @@ import type {
   MyInvitation,
   MyWorkspace,
   NotificationPrefs,
+  PlanId,
   Post,
   PostMetrics,
   Role,
@@ -205,6 +206,13 @@ function useStoreValue() {
           const notifications = await api.updateNotificationPrefs(prefs);
           setSession((s) => (s ? { ...s, notifications } : s));
           return notifications;
+        }),
+      /** Simulated: no payment. The new session also reloads the active workspace, whose features may have changed. */
+      changePlan: (planId: PlanId) =>
+        run(async () => {
+          const plan = await api.changePlan(planId);
+          await refreshSession();
+          return plan;
         }),
 
       // Workspaces

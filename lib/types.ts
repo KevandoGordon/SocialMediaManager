@@ -21,13 +21,18 @@ export interface User {
   lastActive: string;
 }
 
-export type PlanId = "free";
+export type PlanId = "free" | "pro" | "agency";
 
+/** Entitlements of a billing plan. A plan belongs to an account; its workspace features apply to the workspaces that account owns. */
 export interface Plan {
   id: PlanId;
   name: string;
+  priceMonthlyUsd: number;
   /** How many workspaces an account may own at once. Joining via invitation never counts. */
   workspaceCreationLimit: number;
+  /** How many days of analytics are visible in owned workspaces, today included. */
+  analyticsHistoryDays: number;
+  csvExport: boolean;
 }
 
 export interface Workspace {
@@ -76,6 +81,8 @@ export interface MyWorkspace {
   role: Role;
   isOwner: boolean;
   memberCount: number;
+  /** The owner's plan, which decides this workspace's features. */
+  plan: Plan;
 }
 
 export interface MyInvitation {

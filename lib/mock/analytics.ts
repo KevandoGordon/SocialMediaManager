@@ -6,8 +6,8 @@ const scale: Record<NetworkId, number> = {
   facebook: 1.4, instagram: 2.2, x: 0.9, linkedin: 0.6, tiktok: 3.1, youtube: 0.8, pinterest: 0.5, threads: 0.4,
 };
 
-/** Daily series for each connected account. 60 days so a 30-day view can compare against the previous 30. */
-export function buildDaily(workspaceId: string, accounts: Account[], seed: number, days = 60): DailyMetric[] {
+/** Daily series for each connected account: a year, the longest history any plan shows. */
+export function buildDaily(workspaceId: string, accounts: Account[], seed: number, days = 365): DailyMetric[] {
   const rand = seeded(seed);
   const rows: DailyMetric[] = [];
   for (const account of accounts.filter((a) => a.connected && a.workspaceId === workspaceId)) {

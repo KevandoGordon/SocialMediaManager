@@ -17,7 +17,7 @@ export function useCreationAllowance() {
     allowed,
     reason: allowed
       ? ""
-      : `Your ${plan.name} plan includes ${plan.workspaceCreationLimit} owned workspace and you're using it. You can still join others by invitation.`,
+      : `Your ${plan.name} plan lets you own ${plan.workspaceCreationLimit} workspace${plan.workspaceCreationLimit === 1 ? "" : "s"} and you're at the limit. Change plan on the Workspaces page, or join others by invitation.`,
   };
 }
 

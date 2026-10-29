@@ -1,4 +1,4 @@
-export type ApiErrorCode = "unauthenticated" | "forbidden" | "not_found" | "conflict" | "limit_reached" | "invalid";
+export type ApiErrorCode = "unauthenticated" | "forbidden" | "not_found" | "conflict" | "limit_reached" | "upgrade_required" | "invalid";
 
 /** What a real API would return as a 4xx. Messages are written to be shown to the user as-is. */
 export class ApiError extends Error {

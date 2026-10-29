@@ -10,11 +10,12 @@ Three separate concepts, each stored in its own place:
 |---|---|---|
 | **Ownership** | Who is accountable for this workspace, and whose plan does it count against? | `workspaces.owner_user_id` (exactly one) |
 | **Membership** | Who can access this workspace, and with what role? | `workspace_memberships` (one row per user per workspace) |
-| **Entitlement** | How many workspaces may this account own? | `account_entitlements` → `plans` |
+| **Entitlement** | How many workspaces may this account own, and which features do they get? | `account_entitlements` → `plans` |
 
 - The workspace creation limit is checked as *count of workspaces where `owner_user_id = me`* against *my plan's `workspace_creation_limit`*. Memberships are never counted.
 - The owner is always also an Admin member. Ownership can only be transferred by the owner, to an existing Admin whose own plan has room.
 - Roles live only on memberships. A user has no global role.
+- Workspace features (analytics history, CSV export) come from the **owner's** plan and apply to every member. A Free user who is a member of a Pro owner's workspace sees Pro features there.
 
 ## 2. Schema (PostgreSQL)
 
@@ -35,11 +36,17 @@ create table users (
 );
 
 create table plans (
-  id                        text primary key,    -- 'free' only, until pricing is decided
+  id                        text primary key,
   name                      text not null,
-  workspace_creation_limit  int  not null check (workspace_creation_limit >= 0)
+  price_monthly_usd         int  not null check (price_monthly_usd >= 0),
+  workspace_creation_limit  int  not null check (workspace_creation_limit >= 0),
+  analytics_history_days    int  not null check (analytics_history_days > 0),
+  csv_export                boolean not null
 );
-insert into plans values ('free', 'Free', 1);
+insert into plans values
+  ('free',   'Free',    0,  1,  30, false),
+  ('pro',    'Pro',    29,  5, 365, true),
+  ('agency', 'Agency', 99, 25, 365, true);
 
 -- The billing/entitlement record the creation limit is checked against. One per account today;
 -- a future org/billing entity can replace user_id without touching memberships.
@@ -340,6 +347,10 @@ commit;
 
 `transferOwnership` takes the same lock on the **recipient's** entitlement row. The UI's disabled button is only a hint; the server is the authority. The mock gets the same guarantee by doing its check and insert in one synchronous step, and the test suite fires two concurrent creates to confirm.
 
+Plan changes come only from the billing provider's webhook after a successful checkout or cancellation; the client never writes `account_entitlements`. A downgrade that would leave the account owning more workspaces than the new plan allows is refused at checkout. The mock's `changePlan` applies the change instantly with no payment, for demos only.
+
+Analytics history is enforced in the query (`date >= today - analytics_history_days + 1`, using the owner's plan), for both reads and CSV export, not by hiding rows in the UI.
+
 **Decision to confirm:** the limit counts workspaces an account *currently owns*. Transferring a workspace away frees a slot. If you'd rather cap "workspaces ever created" (to stop a create → transfer → create loop), add a `created_by_user_id` column and count that instead.
 
 ## 4. Authorization on the server
@@ -372,15 +383,15 @@ const { user, membership } = await authorize(session, workspaceId, "posts.approv
 
 The mock API was shaped so each step swaps an implementation without touching pages.
 
-1. **Decide providers** *(needs your approval)*: Postgres host, auth provider, transactional email, object storage, job runner. Billing is deferred.
+1. **Decide providers** *(needs your approval)*: Postgres host, auth provider, transactional email, object storage, job runner, billing.
 2. **Server boundary.** Move `lib/data/api.ts` behind Next.js route handlers or server actions with identical function signatures. Keep the in-memory implementation as a `DATA_SOURCE=mock` adapter for local development and demos, and keep the demo sign-in menu only in that mode.
 3. **Auth.** Replace `demoSignIn` with the provider's session. `requireUser()` becomes "read the session cookie".
 4. **Schema and seed.** Apply section 2 as migrations. Write a seed script that loads `lib/mock/*` into a dev database, so the demo data survives the switch.
-5. **Repositories.** Implement each API function against Postgres using `authorize()` and `lib/permissions.ts`. Port the existing API test suite (53 cases: isolation, roles, limit, invitations, safeguards) to run against **both** adapters in CI.
+5. **Repositories.** Implement each API function against Postgres using `authorize()` and `lib/permissions.ts`. Port the existing API test suite (65 cases: isolation, roles, plans and limits, invitations, safeguards) to run against **both** adapters in CI.
 6. **Invitations.** Add tokens, email sending, the accept route and the sign-up path from section 5.
 7. **Media.** Upload directly to object storage through pre-signed URLs; store metadata in `media_assets`.
 8. **Social networks** *(per network; needs approval)*: OAuth connect into `social_account_credentials`; sync workers for analytics, mentions and inbox; `publish_jobs` worker for scheduled posts.
-9. **Billing** *(later; needs pricing decisions)*: add rows to `plans`, attach a billing provider to `account_entitlements`. Memberships are untouched.
+9. **Billing** *(needs your approval of a provider)*: checkout and customer portal for Pro and Agency, and a webhook that updates `account_entitlements`. Replace the mock's instant plan switch with the checkout link. Memberships are untouched.
 
 ## 7. Differences between the mock and this schema
 
@@ -392,4 +403,5 @@ The mock API was shaped so each step swaps an implementation without touching pa
 | Approval status only | `approval_events` audit trail |
 | Expiry derived on read | Same, plus optional reporting job |
 | Uploaded media as browser object URLs | Object storage + signed URLs |
+| Plan switch is instant and free | Changed only by the billing webhook |
 | Data resets on reload | Durable |

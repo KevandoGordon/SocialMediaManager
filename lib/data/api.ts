@@ -14,6 +14,7 @@
  * concurrent calls can't interleave between a check and its write (see createWorkspace).
  * Data lives in memory and resets on page reload. Nothing is emailed, connected or published.
  */
+import { format, subDays } from "date-fns";
 import * as seed from "../mock";
 import { NETWORK_IDS } from "../networks";
 import { assignableRoles, can, canDeletePost, canEditPost, PERMISSIONS, type Permission } from "../permissions";
@@ -30,6 +31,7 @@ import type {
   MyWorkspace,
   NetworkId,
   NotificationPrefs,
+  PlanId,
   Post,
   PostMetrics,
   PostStatus,
@@ -128,6 +130,9 @@ function scoped<T extends { id: string; workspaceId: string }>(list: T[], worksp
 const inWs = <T extends { workspaceId: string }>(list: T[], workspaceId: string) => list.filter((x) => x.workspaceId === workspaceId);
 
 const planFor = (userId: string) => PLANS[db.accountPlans[userId] ?? "free"];
+/** Workspace features come from the owner's plan, whoever is asking. */
+const workspacePlan = (workspace: Workspace) => planFor(workspace.ownerUserId);
+const analyticsCutoff = (workspace: Workspace) => format(subDays(new Date(), workspacePlan(workspace).analyticsHistoryDays - 1), "yyyy-MM-dd");
 const ownedCount = (userId: string) => db.workspaces.filter((w) => w.ownerUserId === userId).length;
 const adminCount = (workspaceId: string) => db.memberships.filter((m) => m.workspaceId === workspaceId && m.role === "Admin").length;
 const normalizeEmail = (email: string) => email.trim().toLowerCase();
@@ -178,6 +183,27 @@ export const updateNotificationPrefs = (prefs: NotificationPrefs) =>
     return prefs;
   });
 
+/**
+ * Simulated plan change: takes effect immediately and charges nothing. In production the plan is
+ * only ever changed by the billing provider's webhook after checkout succeeds, never by the client.
+ * A downgrade is refused while the account owns more workspaces than the new plan allows.
+ */
+export const changePlan = (planId: PlanId) =>
+  handle(() => {
+    const user = requireUser();
+    const plan = PLANS[planId];
+    if (!plan) throw new ApiError("invalid", "Unknown plan.");
+    const owned = ownedCount(user.id);
+    if (owned > plan.workspaceCreationLimit) {
+      throw new ApiError(
+        "conflict",
+        `You own ${owned} workspaces and ${plan.name} allows ${plan.workspaceCreationLimit}. Transfer ownership of ${owned - plan.workspaceCreationLimit} first.`,
+      );
+    }
+    db.accountPlans[user.id] = plan.id;
+    return plan;
+  });
+
 // ---------------------------------------------------------------------------
 // Workspaces
 
@@ -193,6 +219,7 @@ export const listMyWorkspaces = () =>
           role: m.role,
           isOwner: workspace.ownerUserId === user.id,
           memberCount: db.memberships.filter((x) => x.workspaceId === m.workspaceId).length,
+          plan: workspacePlan(workspace),
         };
       })
       .sort((a, b) => Number(b.isOwner) - Number(a.isOwner) || a.workspace.name.localeCompare(b.workspace.name));
@@ -645,14 +672,21 @@ export const setAccountConnected = (workspaceId: string, id: string, connected: 
 
 export const getAnalytics = (workspaceId: string) =>
   handle<{ daily: DailyMetric[]; posts: PostMetrics[] }>(() => {
-    authorize(workspaceId, "analytics.view");
-    return { daily: inWs(db.dailyMetrics, workspaceId), posts: inWs(db.postMetrics, workspaceId) };
+    const { workspace } = authorize(workspaceId, "analytics.view");
+    const cutoff = analyticsCutoff(workspace);
+    return { daily: inWs(db.dailyMetrics, workspaceId).filter((r) => r.date >= cutoff), posts: inWs(db.postMetrics, workspaceId) };
   });
 
 export const exportAnalyticsCsv = (workspaceId: string, opts: { since: string; network: NetworkId | "all" }) =>
   handle(() => {
-    authorize(workspaceId, "analytics.export");
-    const rows = inWs(db.dailyMetrics, workspaceId).filter((r) => r.date >= opts.since && (opts.network === "all" || r.network === opts.network));
+    const { user, workspace } = authorize(workspaceId, "analytics.export");
+    const plan = workspacePlan(workspace);
+    if (!plan.csvExport) {
+      const owner = workspace.ownerUserId === user.id ? "you" : db.users.find((u) => u.id === workspace.ownerUserId)?.name ?? "its owner";
+      throw new ApiError("upgrade_required", `CSV export comes with Pro and Agency. ${workspace.name} uses its owner's ${plan.name} plan, which only ${owner} can change.`);
+    }
+    const since = opts.since > analyticsCutoff(workspace) ? opts.since : analyticsCutoff(workspace);
+    const rows = inWs(db.dailyMetrics, workspaceId).filter((r) => r.date >= since && (opts.network === "all" || r.network === opts.network));
     const header = "date,network,followers,impressions,engagements,clicks";
     return [header, ...rows.map((r) => [r.date, r.network, r.followers, r.impressions, r.engagements, r.clicks].join(","))].join("\n");
   });
